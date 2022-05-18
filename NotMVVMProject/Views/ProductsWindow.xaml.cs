@@ -78,7 +78,7 @@ namespace NotMVVMProject.Views
             LoadProducts();
             LoadFilter();
             LoadSortParams();
-            /* ImageTest();*/
+           /* ImageTest();*/
 
             InitializeFields();
 
@@ -89,17 +89,20 @@ namespace NotMVVMProject.Views
         }
         private void ImageTest()
         {
-            var images = Directory.GetFiles(@"C:\Users\EnFox\Desktop\NotMVVM-master\NotMVVMProject\bin\Debug\Images");
-            foreach (var product in TestProductsContext.Instantce.Products)
+            using (var db = new TestProductsContext())
             {
-                var image = images.FirstOrDefault(f => f.Contains(product.ImagePath));
-
-                if (image != null)
+                var images = Directory.GetFiles(@"C:\Users\EnFox\Desktop\NotMVVM-master\NotMVVMProject\bin\Debug\Images");
+                foreach (var product in db.Products)
                 {
-                    product.Image = File.ReadAllBytes(image);
-                }
-                TestProductsContext.Instantce.SaveChanges();
+                    var image = images.FirstOrDefault(f => f.Contains(product.ImagePath));
 
+                    if (image != null)
+                    {
+                        product.Image = File.ReadAllBytes(image);
+                    }
+                }
+                db.SaveChanges();
+                
             }
         }
 
@@ -134,7 +137,7 @@ namespace NotMVVMProject.Views
             LoadPages();
             DisplayedPagesNumbers = new ObservableCollection<int>(PagesNumbers
                     .Take(maxDisplayedPages));
-            if (SelectedPageNumber > DisplayedPagesNumbers.Count)
+            if(SelectedPageNumber > DisplayedPagesNumbers.Count)
             {
                 SelectedPageNumber = DisplayedPagesNumbers.LastOrDefault();
             }
@@ -144,8 +147,9 @@ namespace NotMVVMProject.Views
         /// </summary>
         private void LoadProducts()
         {
+            using (var db = new TestProductsContext())
             {
-                Products = new ObservableCollection<Products>(TestProductsContext.Instantce.Products.ToList());
+                Products = new ObservableCollection<Products>(db.Products.Include("MaterialToProduct").Include("MaterialToProduct.Materials").ToList());
             }
         }
         /// <summary>
@@ -208,7 +212,7 @@ namespace NotMVVMProject.Views
         private void ChangePage()
         {
             //if (SelectedPageIndex >= Math.Ceiling((float)DisplayedPagesNumbers.Count / (float)2))
-
+            
             if (SelectedPageNumber <= PageListAvg(DisplayedPagesNumbers))
             {
                 DisplayedPagesNumbers = new ObservableCollection<int>(PagesNumbers
@@ -269,40 +273,41 @@ namespace NotMVVMProject.Views
         /// <param name="e"></param>
         private void ListViewItem_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-
-            var productWindow = new ProductWindow(SelectedProduct);
-            productWindow.ShowDialog();
-            if (productWindow.DialogResult == true)
+            using (var db = new TestProductsContext())
             {
-                try
+                var productWindow = new ProductWindow(SelectedProduct);
+                productWindow.ShowDialog();
+                if (productWindow.DialogResult == true)
                 {
-                    var product = TestProductsContext.Instantce.Products.Find(productWindow.CurrentProduct.ProductName);
-                    product.Type = productWindow.CurrentProduct.Type;
-                    product.Supplier = productWindow.CurrentProduct.Supplier;
-                    product.ImagePath = productWindow.CurrentProduct.ImagePath;
-                    product.Amount = productWindow.CurrentProduct.Amount;
+                    try
+                    {
+                        var product = db.Products.Find(productWindow.CurrentProduct.ProductName);
+                        product.Type = productWindow.CurrentProduct.Type;
+                        product.Supplier = productWindow.CurrentProduct.Supplier;
+                        product.ImagePath = productWindow.CurrentProduct.ImagePath;
+                        product.Amount = productWindow.CurrentProduct.Amount;
 
-                    product.MaterialToProduct.Clear();
-                    product.MaterialToProduct = productWindow.CurrentProduct.MaterialToProduct;
+                        product.MaterialToProduct.Clear();
+                        product.MaterialToProduct = productWindow.CurrentProduct.MaterialToProduct;
 
-                    TestProductsContext.Instantce.Entry(product).State = System.Data.Entity.EntityState.Modified;
-                    TestProductsContext.Instantce.SaveChanges();
+                        db.Entry(product).State = System.Data.Entity.EntityState.Modified;
+                        db.SaveChanges();
+                        LoadProducts();
+                        FilterProducts(SearchText, SelectedType, SelectedSort.Property, OrderByDescening);
+                        MessageBox.Show("Товар успешно обновлён!", "Оповещение", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message, "Произошла ошибка при редактировании", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+                else
+                {
                     LoadProducts();
                     FilterProducts(SearchText, SelectedType, SelectedSort.Property, OrderByDescening);
-                    MessageBox.Show("Товар успешно обновлён!", "Оповещение", MessageBoxButton.OK, MessageBoxImage.Information);
-
+                    MessageBox.Show("Продукт успешно удалён из базы данных!", "Вопрос", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.Message, "Произошла ошибка при редактировании", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-            else
-            {
-                LoadProducts();
-                FilterProducts(SearchText, SelectedType, SelectedSort.Property, OrderByDescening);
-                MessageBox.Show("Продукт успешно удалён из базы данных!", "Вопрос", MessageBoxButton.OK, MessageBoxImage.Information);
-
             }
         }
         /// <summary>
@@ -316,21 +321,23 @@ namespace NotMVVMProject.Views
             productWindow.ShowDialog();
             if (productWindow.DialogResult == true)
             {
+                using (var db = new TestProductsContext())
+                {
+                    try
+                    {
 
-                try
-                {
-                    TestProductsContext.Instantce.Products.Add(productWindow.CurrentProduct);
-                    TestProductsContext.Instantce.SaveChanges();
-                    LoadProducts();
-                    FilterProducts(SearchText, SelectedType, SelectedSort.Property, OrderByDescening);
-                    MessageBox.Show("Товар успешно добавлен!", "Оповещение", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.Message, "Произошла ошибка при добавблении", MessageBoxButton.OK, MessageBoxImage.Error);
+                        db.Products.Add(productWindow.CurrentProduct);
+                        db.SaveChanges();
+                        LoadProducts();
+                        FilterProducts(SearchText, SelectedType, SelectedSort.Property, OrderByDescening);
+                        MessageBox.Show("Товар успешно добавлен!", "Оповещение", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message, "Произошла ошибка при добавблении", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
                 }
             }
-
         }
         #endregion
 
@@ -366,11 +373,6 @@ namespace NotMVVMProject.Views
         {
             SelectedPageNumber = PagesNumbers.Count;
             ChangePage();
-        }
-
-        private void ListView_SelectionChanged_1(object sender, SelectionChangedEventArgs e)
-        {
-
         }
     }
 }

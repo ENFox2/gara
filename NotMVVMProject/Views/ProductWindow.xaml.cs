@@ -136,9 +136,10 @@ namespace NotMVVMProject.Views
         }
         private void LoadMaterials()
         {
-
-            Materials = new ObservableCollection<Materials>(TestProductsContext.Instantce.Materials.ToList());
-
+            using (var db = new TestProductsContext())
+            {
+                Materials = new ObservableCollection<Materials>(db.Materials.ToList());
+            }
         }
         private void LoadMaterialsList()
         {
@@ -185,7 +186,7 @@ namespace NotMVVMProject.Views
             if (openFileDialog.ShowDialog() == true)
             {
                 var newFilePath = "Images/" + Guid.NewGuid() + ".png";
-
+                
                 tempImage = newFilePath;
                 Image = openFileDialog.FileName;
             }
@@ -233,68 +234,69 @@ namespace NotMVVMProject.Views
         /// <param name="e"></param>
         private void Save_Click(object sender, RoutedEventArgs e)
         {
-
-            CurrentProduct.ImagePath = Image;
-            CurrentProduct.Supplier = Supplier;
-            CurrentProduct.Type = SelectedType;
-            CurrentProduct.Amount = Convert.ToInt32(Amount);
-            CurrentProduct.ProductName = ProductName;
-            if (ValidateProduct(CurrentProduct))
+            using (var db = new TestProductsContext())
             {
-                File.Copy(Image, tempImage);
-                //добавление продукта, если флаг равен true, и редактирование продукта, если флаг false
-                if (isOperationAdd)
+                CurrentProduct.ImagePath = Image;
+                CurrentProduct.Supplier = Supplier;
+                CurrentProduct.Type = SelectedType;
+                CurrentProduct.Amount = Convert.ToInt32(Amount);
+                CurrentProduct.ProductName = ProductName;
+                if (ValidateProduct(CurrentProduct))
                 {
-                    try
+                    File.Copy(Image, tempImage);
+                    //добавление продукта, если флаг равен true, и редактирование продукта, если флаг false
+                    if (isOperationAdd)
                     {
-                        //если продукт с таких именем в базе не найден, то добавляем, иначе коворим что ошибка
-                        if (TestProductsContext.Instantce.Products.FirstOrDefault(p => p.ProductName.Equals(ProductName)) == null)
+                        try
                         {
+                            //если продукт с таких именем в базе не найден, то добавляем, иначе коворим что ошибка
+                            if (db.Products.FirstOrDefault(p => p.ProductName.Equals(ProductName)) == null)
+                            {
+                                foreach (var item in MaterialsList)
+                                {
+                                    CurrentProduct.MaterialToProduct.Add(new MaterialToProduct
+                                    {
+                                        ProductName = CurrentProduct.ProductName,
+                                        MaterialName = item.MaterialName,
+                                        AmountOfMaterial = Convert.ToInt32(AmountOfMaterial)
+                                    });
+                                }
+                                this.DialogResult = true;
+                            }
+                            else
+                            {
+                                MessageBox.Show($"Продукт с именем {CurrentProduct.ProductName} уже сщуествует!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(ex.Message, "Произошла ошибка при добавлении", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    }
+                    else
+                    {
+                        try
+                        {
+                            CurrentProduct.MaterialToProduct.Clear();
                             foreach (var item in MaterialsList)
                             {
                                 CurrentProduct.MaterialToProduct.Add(new MaterialToProduct
                                 {
                                     ProductName = CurrentProduct.ProductName,
                                     MaterialName = item.MaterialName,
-                                    AmountOfMaterial = Convert.ToInt32(AmountOfMaterial)
+                                    AmountOfMaterial = Convert.ToInt32(item.Amount)
                                 });
                             }
                             this.DialogResult = true;
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            MessageBox.Show($"Продукт с именем {CurrentProduct.ProductName} уже сщуествует!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                            MessageBox.Show(ex.Message, "Произошла ошибка при редактировании", MessageBoxButton.OK, MessageBoxImage.Error);
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.Message, "Произошла ошибка при добавлении", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
                 }
-                else
-                {
-                    try
-                    {
-                        CurrentProduct.MaterialToProduct.Clear();
-                        foreach (var item in MaterialsList)
-                        {
-                            CurrentProduct.MaterialToProduct.Add(new MaterialToProduct
-                            {
-                                ProductName = CurrentProduct.ProductName,
-                                MaterialName = item.MaterialName,
-                                AmountOfMaterial = Convert.ToInt32(item.Amount)
-                            });
-                        }
-                        this.DialogResult = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.Message, "Произошла ошибка при редактировании", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                }
+                else MessageBox.Show("Не все полня правильно заполнены!", "Внимание", MessageBoxButton.OK, MessageBoxImage.Information);
             }
-            else MessageBox.Show("Не все полня правильно заполнены!", "Внимание", MessageBoxButton.OK, MessageBoxImage.Information);
-
         }
 
         /// <summary>
@@ -304,20 +306,21 @@ namespace NotMVVMProject.Views
         /// <param name="e"></param>
         private void Delete_Click(object sender, RoutedEventArgs e)
         {
-
-            var dialog = MessageBox.Show("Вы точно хотите удалить этот продукт?", "Опопвещение", MessageBoxButton.OKCancel, MessageBoxImage.Question);
-            if (dialog == MessageBoxResult.OK)
+            using (var db = new TestProductsContext())
             {
-                var product = TestProductsContext.Instantce.Products.Find(CurrentProduct.ProductName);
-                if (product != null)
+                var dialog = MessageBox.Show("Вы точно хотите удалить этот продукт?", "Опопвещение", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                if (dialog == MessageBoxResult.OK)
                 {
-                    TestProductsContext.Instantce.Products.Remove(product);
-                    TestProductsContext.Instantce.SaveChanges();
-                    DialogResult = false;
-
+                    var product = db.Products.Find(CurrentProduct.ProductName);
+                    if (product != null)
+                    {
+                        db.Products.Remove(product);
+                        db.SaveChanges();
+                        DialogResult = false;
+                        
+                    }
+                    else MessageBox.Show("Продукт не найден в базе данных!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
-                else MessageBox.Show("Продукт не найден в базе данных!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-
             }
         }
 

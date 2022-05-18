@@ -7,26 +7,10 @@ namespace NotMVVMProject.Data
 {
     public partial class TestProductsContext : DbContext
     {
-        private TestProductsContext()
+        public TestProductsContext()
             : base("name=TestProducts")
         {
-            Configuration.LazyLoadingEnabled = true;
-
         }
-        private static TestProductsContext instantce;
-
-        public static TestProductsContext Instantce
-        {
-           get
-            { 
-                if (instantce == null)
-                {
-                    instantce = new TestProductsContext();
-                }
-                return instantce;
-            }
-        }
-
 
         public virtual DbSet<Materials> Materials { get; set; }
         public virtual DbSet<MaterialToProduct> MaterialToProduct { get; set; }
